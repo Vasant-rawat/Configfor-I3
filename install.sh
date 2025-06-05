@@ -94,7 +94,8 @@ elif [ "$OS_TYPE" == "mint" ]; then
     echo "Updating Linux Mint system packages..."
     sudo apt-get update -y
     echo "Installing essential packages for Linux Mint: ${mint_essential_packages[*]}..."
-    sudo apt-get install -y "${mint_essential_packages[@]}"
+    # Add -f to attempt to fix broken dependencies that might sometimes occur with apt-get
+    sudo apt-get install -f -y "${mint_essential_packages[@]}"
 fi
 
 if [ "$OS_TYPE" == "arch" ]; then
@@ -103,8 +104,14 @@ if [ "$OS_TYPE" == "arch" ]; then
     if ! command -v yay &> /dev/null
     then
         echo "yay not found. Installing yay..."
+        # Ensure /tmp/yay is clean before cloning
+        if [ -d "/tmp/yay" ]; then
+            echo "INFO: Removing existing /tmp/yay directory before cloning."
+            rm -rf /tmp/yay
+        fi
         git clone https://aur.archlinux.org/yay.git /tmp/yay
         (cd /tmp/yay && makepkg -si --noconfirm)
+        # Clean up /tmp/yay after successful or failed build
         rm -rf /tmp/yay
         echo "yay installed successfully."
     else
@@ -600,7 +607,7 @@ echo "Installing additional dependencies for GTK themes and Papirus icons..."
 if [ "$OS_TYPE" == "arch" ]; then
     sudo pacman -S --noconfirm --needed papirus-icon-theme gnome-themes-extra
 elif [ "$OS_TYPE" == "mint" ]; then
-    sudo apt-get install -y papirus-icon-theme gnome-themes-standard # gnome-themes-standard provides Adwaita for Mint
+    sudo apt-get install -y papirus-icon-theme gnome-themes-extra # Changed from gnome-themes-standard
 fi
 
 # --- Catppuccin Icon Theme Installation Logic ---
