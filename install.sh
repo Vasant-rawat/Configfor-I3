@@ -1,18 +1,45 @@
 #!/bin/bash
 # install.sh
-# This script automates the setup and customization of an Arch Linux environment
-# with i3-wm, Polybar, Kitty, Picom, and themes (Catppuccin/Rosé Pine).
+# This script automates the setup and customization of an i3-wm environment
+# on Arch Linux or Linux Mint, including Polybar, Kitty, Picom,
+# and themes (Catppuccin/Rosé Pine).
 
-echo "Starting Arch Linux i3 customization script..."
+# OS Detection
+OS_TYPE=""
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    if [[ "$ID" == "arch" ]] || [[ "$ID_LIKE" == "arch" ]]; then
+        OS_TYPE="arch"
+    elif [[ "$ID" == "linuxmint" ]] || [[ "$ID_LIKE" == "linuxmint" ]]; then
+        OS_TYPE="mint"
+    fi
+fi
+
+if [ -z "$OS_TYPE" ]; then
+    echo "Error: Unsupported operating system." >&2
+    echo "This script supports Arch Linux and Linux Mint." >&2
+    exit 1
+else
+    echo "Detected OS: $OS_TYPE"
+fi
+
+# Package lists
+arch_essential_packages=(git i3-wm polybar kitty picom base-devel)
+mint_essential_packages=(git i3 polybar kitty picom build-essential curl unzip)
+# Note: papirus-icon-theme and gnome-themes-* are handled separately later
+
+echo "Starting Linux i3 Customization Script for Arch Linux / Linux Mint..."
 
 # Basic error handling: exit immediately if a command exits with a non-zero status.
 set -e
 
 echo "---------------------------------------------------------------------"
-echo "Arch Linux i3 Customization Script by Jules"
+echo "Linux i3 Customization Script (Arch/Mint) by Jules"
 echo "---------------------------------------------------------------------"
-echo "This script will:"
-echo "1. Update your system and install essential packages (i3, Polybar, Kitty, Picom, yay)."
+echo "This script supports Arch Linux and Linux Mint."
+echo "It will:"
+echo "1. Update your system and install essential packages (i3, Polybar, Kitty, Picom)."
+echo "   (Manages 'yay' for Arch Linux users automatically)."
 echo "2. Download Catppuccin and Rosé Pine theme source files."
 echo "3. Configure Polybar, Kitty, Picom, and i3 with Catppuccin Mocha defaults."
 echo "4. Configure GTK2/3 themes, icons, and cursors to Catppuccin Mocha."
@@ -26,7 +53,10 @@ echo "---------------------------------------------------------------------"
 echo "IMPORTANT: This script will use 'sudo' for package installations."
 echo "It is recommended to run this script as your regular user."
 echo "You will be prompted for your password when 'sudo' is called."
-echo "Ensure you have yay (AUR helper) or base-devel for it to be installed."
+echo "Ensure you have necessary build tools (base-devel for Arch, build-essential for Mint - which are installed by this script)."
+echo "For Arch Linux, 'yay' (AUR helper) will be installed if not present."
+echo "For additional AUR packages on Arch, use 'yay'."
+echo "For Linux Mint, you may need to find PPAs or .deb packages for software not in standard repositories."
 echo "---------------------------------------------------------------------"
 # Simple prompt to continue
 # read -p "Press Enter to continue, or Ctrl+C to abort."
@@ -50,26 +80,33 @@ mkdir -p "$CONFIG_DIR"
 
 # (Further script content will be added in subsequent steps)
 
-echo "Updating system packages..."
-sudo pacman -Syu --noconfirm
+if [ "$OS_TYPE" == "arch" ]; then
+    echo "Updating Arch Linux system packages..."
+    sudo pacman -Syu --noconfirm
+    echo "Installing essential packages for Arch Linux: ${arch_essential_packages[*]}..."
+    sudo pacman -S --noconfirm --needed "${arch_essential_packages[@]}"
+elif [ "$OS_TYPE" == "mint" ]; then
+    echo "Updating Linux Mint system packages..."
+    sudo apt-get update -y
+    echo "Installing essential packages for Linux Mint: ${mint_essential_packages[*]}..."
+    sudo apt-get install -y "${mint_essential_packages[@]}"
+fi
 
-essential_packages=(git i3-wm polybar kitty picom base-devel)
-echo "Installing essential packages: ${essential_packages[*]}..."
-for package in "${essential_packages[@]}"; do
-  sudo pacman -S --noconfirm --needed "$package"
-done
-
-# Check and install yay (AUR helper)
-echo "Checking for yay AUR helper..."
-if ! command -v yay &> /dev/null
-then
-    echo "yay not found. Installing yay..."
-    git clone https://aur.archlinux.org/yay.git /tmp/yay
-    (cd /tmp/yay && makepkg -si --noconfirm)
-    rm -rf /tmp/yay
-    echo "yay installed successfully."
+if [ "$OS_TYPE" == "arch" ]; then
+    # Check and install yay (AUR helper)
+    echo "Checking for yay AUR helper..."
+    if ! command -v yay &> /dev/null
+    then
+        echo "yay not found. Installing yay..."
+        git clone https://aur.archlinux.org/yay.git /tmp/yay
+        (cd /tmp/yay && makepkg -si --noconfirm)
+        rm -rf /tmp/yay
+        echo "yay installed successfully."
+    else
+        echo "yay is already installed."
+    fi
 else
-    echo "yay is already installed."
+    echo "Skipping yay (AUR helper) installation for $OS_TYPE."
 fi
 
 echo "Creating directories for theme source files..."
@@ -380,7 +417,11 @@ fi
 echo "i3 Window Manager configuration complete."
 
 echo "Installing additional dependencies for GTK themes and Papirus icons..."
-sudo pacman -S --noconfirm --needed papirus-icon-theme gnome-themes-extra # gnome-themes-extra provides Adwaita, needed by some themes
+if [ "$OS_TYPE" == "arch" ]; then
+    sudo pacman -S --noconfirm --needed papirus-icon-theme gnome-themes-extra
+elif [ "$OS_TYPE" == "mint" ]; then
+    sudo apt-get install -y papirus-icon-theme gnome-themes-standard # gnome-themes-standard provides Adwaita for Mint
+fi
 
 if [ ! -d "$THEME_SRC_DIR/catppuccin/cursors" ]; then
     echo "Cloning Catppuccin cursors..."
@@ -475,22 +516,51 @@ echo "GTK configuration complete. You may need to log out and back in for all ch
 
 echo "Installing Nerd Fonts..."
 
-# Define the Nerd Font to install (using yay from AUR)
-# nerd-fonts-fira-code is a common package, check AUR for exact name if issues.
-NERD_FONT_PACKAGE="nerd-fonts-fira-code"
+# Define the Nerd Font to install
+NERD_FONT_PACKAGE_AUR="nerd-fonts-fira-code" # AUR package name for Arch
 
-echo "Attempting to install $NERD_FONT_PACKAGE using yay..."
-if command -v yay &> /dev/null; then
-    # Running yay as the SUDO_USER if script is elevated, or as current user otherwise
-    if [ -n "$SUDO_USER" ]; then
-        sudo -u "$SUDO_USER" yay -S --noconfirm --needed "$NERD_FONT_PACKAGE"
+if [ "$OS_TYPE" == "arch" ]; then
+    echo "Attempting to install $NERD_FONT_PACKAGE_AUR using yay for Arch Linux..."
+    if command -v yay &> /dev/null; then
+        if [ -n "$SUDO_USER" ]; then
+            sudo -u "$SUDO_USER" yay -S --noconfirm --needed "$NERD_FONT_PACKAGE_AUR"
+        else
+            yay -S --noconfirm --needed "$NERD_FONT_PACKAGE_AUR"
+        fi
+        echo "$NERD_FONT_PACKAGE_AUR installation attempt complete."
     else
-        yay -S --noconfirm --needed "$NERD_FONT_PACKAGE"
+        echo "WARNING: yay command not found. Cannot install Nerd Fonts automatically from AUR for Arch Linux."
+        echo "Please install $NERD_FONT_PACKAGE_AUR manually using your AUR helper."
     fi
-    echo "$NERD_FONT_PACKAGE installation attempt complete."
-else
-    echo "WARNING: yay command not found. Cannot install Nerd Fonts automatically from AUR."
-    echo "Please install $NERD_FONT_PACKAGE manually using your AUR helper."
+elif [ "$OS_TYPE" == "mint" ]; then
+    NERD_FONT_NAME="FiraCode"
+    FONT_DOWNLOAD_URL="https://github.com/ryanoasis/nerd-fonts/releases/download/v3.1.1/FiraCode.zip"
+    USER_FONT_DIR="$USER_HOME_DIR/.local/share/fonts"
+    EXTRACT_SUBDIR="$USER_FONT_DIR/${NERD_FONT_NAME}NerdFont" # Changed variable name slightly for clarity
+    TMP_ZIP_PATH="/tmp/${NERD_FONT_NAME}.zip"
+
+    echo "Installing Fira Code Nerd Font for Linux Mint..."
+    echo "Ensuring curl and unzip are installed (added to mint_essential_packages)..."
+    # Assuming they are installed by the earlier essential packages step
+
+    mkdir -p "$USER_FONT_DIR"
+    mkdir -p "$EXTRACT_SUBDIR"
+
+    echo "Downloading $NERD_FONT_NAME Nerd Font from $FONT_DOWNLOAD_URL..."
+    if curl -L "$FONT_DOWNLOAD_URL" -o "$TMP_ZIP_PATH"; then
+        echo "Download successful. Extracting TTF fonts to $EXTRACT_SUBDIR..."
+        # Extract only .ttf files into the subdirectory.
+        # The -j flag junks paths, -o overwrites, -d specifies output dir.
+        if unzip -j -o "$TMP_ZIP_PATH" "*.ttf" -d "$EXTRACT_SUBDIR/"; then
+            echo "Fonts extracted successfully."
+        else
+            echo "ERROR: Failed to extract fonts. Please check unzip command or zip file content."
+        fi
+        rm "$TMP_ZIP_PATH"
+    else
+        echo "ERROR: Failed to download $NERD_FONT_NAME Nerd Font."
+    fi
+    echo "Fira Code Nerd Font installation process for Mint complete."
 fi
 
 echo "Updating font cache..."
@@ -537,9 +607,23 @@ echo "        - Icons: Copy to $USER_HOME_DIR/.icons/ and update."
 echo "     c. For i3 colors, edit $CONFIG_DIR/i3/config with new color values."
 echo ""
 echo "5. Fonts:"
-echo "   - FiraCode Nerd Font has been installed. If you prefer another Nerd Font,"
-echo "     install it via yay (e.g., 'yay -S nerd-fonts-jetbrains-mono')"
-echo "     and update your i3, Kitty, and Polybar configs accordingly."
+echo "   - FiraCode Nerd Font has been installed by this script."
+echo "   - If you prefer another Nerd Font:"
+if [ "$OS_TYPE" == "arch" ]; then
+echo "     On Arch Linux, you can search and install via yay (e.g., 'yay -S nerd-fonts-jetbrains-mono')."
+elif [ "$OS_TYPE" == "mint" ]; then
+echo "     On Linux Mint, download the font from a trusted source (like https://www.nerdfonts.com/font-downloads)."
+echo "     Then, create a directory in ~/.local/share/fonts (e.g., ~/.local/share/fonts/JetBrainsMonoNerdFont),"
+echo "     extract the font files (TTF or OTF) into it, and run 'fc-cache -fv'."
+echo "     Alternatively, some Nerd Fonts might be available via PPAs or eventually in system repositories."
+fi
+echo "   - After installing a new font, update your i3, Kitty, and Polybar configs accordingly."
 echo ""
-echo "Enjoy your newly customized Arch Linux i3 environment!"
+if [ "$OS_TYPE" == "arch" ]; then
+    echo "Enjoy your newly customized Arch Linux i3 environment!"
+elif [ "$OS_TYPE" == "mint" ]; then
+    echo "Enjoy your newly customized Linux Mint i3 environment!"
+else
+    echo "Enjoy your newly customized i3 environment!"
+fi
 echo "---------------------------------------------------------------------"
