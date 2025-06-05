@@ -128,8 +128,12 @@ git clone --depth 1 https://github.com/catppuccin/papirus-folders.git "$THEME_SR
 echo "Cloning Rosé Pine themes..."
 git clone --depth 1 https://github.com/rose-pine/polybar.git "$THEME_SRC_DIR/rose-pine/polybar"
 git clone --depth 1 https://github.com/rose-pine/kitty.git "$THEME_SRC_DIR/rose-pine/kitty"
-git clone --depth 1 https://github.com/rose-pine/gtk-theme.git "$THEME_SRC_DIR/rose-pine/gtk"
-git clone --depth 1 https://github.com/rose-pine/icons.git "$THEME_SRC_DIR/rose-pine/icons"
+git clone --depth 1 https://github.com/rose-pine/gtk.git "$THEME_SRC_DIR/rose-pine/gtk"
+# Rosé Pine icons are typically part of the GTK theme or separate icon packs, not usually a standalone 'icons' repo for general desktop use by rose-pine.
+# The main rose-pine/icons repo is for their branding/website.
+# If specific Rosé Pine icon themes are desired, they should be sourced from their respective repositories if available,
+# or from community icon packs that include Rosé Pine variants (e.g., Papirus with Rosé Pine folders).
+# For this script, we are not automatically installing Rosé Pine icons beyond what might come with the GTK theme.
 
 echo "Themes downloaded."
 
@@ -505,12 +509,35 @@ else
 fi
 
 # Install Catppuccin Cursor Theme (Mocha Dark)
-CURSOR_THEME_NAME="Catppuccin-Mocha-Dark" 
-if [ -d "$THEME_SRC_DIR/catppuccin/cursors/dist/$CURSOR_THEME_NAME" ]; then
-    echo "Installing Cursor Theme: $CURSOR_THEME_NAME"
-    cp -r "$THEME_SRC_DIR/catppuccin/cursors/dist/$CURSOR_THEME_NAME" "$USER_ICONS_DIR/"
-else
-    echo "WARNING: Cursor Theme $CURSOR_THEME_NAME not found in $THEME_SRC_DIR/catppuccin/cursors/dist/. Cursor theme installation skipped."
+# This section assumes catppuccin/cursors has been cloned into $THEME_SRC_DIR/catppuccin/cursors
+CURSOR_THEME_NAME="Catppuccin-Mocha-Dark"
+CURSOR_FOUND=false
+
+# Define potential paths based on common structures in theme repositories
+PRIMARY_CURSOR_PATH="$THEME_SRC_DIR/catppuccin/cursors/$CURSOR_THEME_NAME"
+FALLBACK_CURSOR_PATH_SRC="$THEME_SRC_DIR/catppuccin/cursors/src/$CURSOR_THEME_NAME"
+FALLBACK_CURSOR_PATH_DIST="$THEME_SRC_DIR/catppuccin/cursors/dist/$CURSOR_THEME_NAME" # Original path
+
+if [ -d "$PRIMARY_CURSOR_PATH" ]; then
+    echo "Installing Cursor Theme: $CURSOR_THEME_NAME from $PRIMARY_CURSOR_PATH"
+    cp -r "$PRIMARY_CURSOR_PATH" "$USER_ICONS_DIR/"
+    CURSOR_FOUND=true
+elif [ -d "$FALLBACK_CURSOR_PATH_SRC" ]; then
+    echo "Installing Cursor Theme: $CURSOR_THEME_NAME from $FALLBACK_CURSOR_PATH_SRC (src/ path)"
+    cp -r "$FALLBACK_CURSOR_PATH_SRC" "$USER_ICONS_DIR/"
+    CURSOR_FOUND=true
+elif [ -d "$FALLBACK_CURSOR_PATH_DIST" ]; then
+    echo "Installing Cursor Theme: $CURSOR_THEME_NAME from $FALLBACK_CURSOR_PATH_DIST (dist/ path)"
+    cp -r "$FALLBACK_CURSOR_PATH_DIST" "$USER_ICONS_DIR/"
+    CURSOR_FOUND=true
+fi
+
+if [ "$CURSOR_FOUND" = false ]; then
+    echo "WARNING: Cursor Theme $CURSOR_THEME_NAME not found in any of the following paths:"
+    echo "  - $PRIMARY_CURSOR_PATH"
+    echo "  - $FALLBACK_CURSOR_PATH_SRC"
+    echo "  - $FALLBACK_CURSOR_PATH_DIST"
+    echo "Cursor theme installation skipped."
 fi
 
 echo "Applying GTK settings..."
