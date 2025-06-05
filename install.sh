@@ -78,6 +78,11 @@ echo "Theme source directory set to: $THEME_SRC_DIR"
 # Ensure .config directory exists
 mkdir -p "$CONFIG_DIR"
 
+# Icon download variables
+ICON_RELEASE_URL="https://github.com/catppuccin/icons/releases/download/v0.3.1/catppuccin-icons.tar.gz"
+ICON_ARCHIVE_PATH="/tmp/catppuccin-icons.tar.gz"
+ICON_EXTRACT_DIR="/tmp/catppuccin-icons-extracted"
+
 # (Further script content will be added in subsequent steps)
 
 if [ "$OS_TYPE" == "arch" ]; then
@@ -117,7 +122,7 @@ echo "Cloning Catppuccin themes..."
 git clone --depth 1 https://github.com/catppuccin/polybar.git "$THEME_SRC_DIR/catppuccin/polybar"
 git clone --depth 1 https://github.com/catppuccin/kitty.git "$THEME_SRC_DIR/catppuccin/kitty"
 git clone --depth 1 https://github.com/catppuccin/gtk.git "$THEME_SRC_DIR/catppuccin/gtk"
-git clone --depth 1 https://github.com/catppuccin/icons.git "$THEME_SRC_DIR/catppuccin/icons"
+# git clone --depth 1 https://github.com/catppuccin/icons.git "$THEME_SRC_DIR/catppuccin/icons" # Replaced by tarball download
 git clone --depth 1 https://github.com/catppuccin/papirus-folders.git "$THEME_SRC_DIR/catppuccin/papirus-folders"
 
 echo "Cloning Rosé Pine themes..."
@@ -423,6 +428,30 @@ elif [ "$OS_TYPE" == "mint" ]; then
     sudo apt-get install -y papirus-icon-theme gnome-themes-standard # gnome-themes-standard provides Adwaita for Mint
 fi
 
+# Download and extract Catppuccin Icons from release asset
+CATPPUCCIN_ICONS_INSTALLED_SUCCESS=false
+if [ -n "$ICON_RELEASE_URL" ]; then # Only attempt if variable is set
+    echo "Downloading Catppuccin icons release asset from $ICON_RELEASE_URL..."
+    if curl -L "$ICON_RELEASE_URL" -o "$ICON_ARCHIVE_PATH"; then
+        echo "Icon archive downloaded successfully to $ICON_ARCHIVE_PATH."
+        mkdir -p "$ICON_EXTRACT_DIR"
+        echo "Extracting icon archive to $ICON_EXTRACT_DIR..."
+        if tar -xzf "$ICON_ARCHIVE_PATH" -C "$ICON_EXTRACT_DIR"; then
+            echo "Icon archive extracted successfully."
+            CATPPUCCIN_ICONS_INSTALLED_SUCCESS=true # Mark as successful for later copy
+        else
+            echo "ERROR: Failed to extract icon archive. Skipping Catppuccin icon installation."
+        fi
+        rm "$ICON_ARCHIVE_PATH" # Clean up downloaded archive
+    else
+        echo "ERROR: Failed to download Catppuccin icons from $ICON_RELEASE_URL. Skipping Catppuccin icon installation."
+    fi
+else
+    echo "INFO: ICON_RELEASE_URL not set, skipping Catppuccin icon download from release."
+    echo "This means the script might have previously relied on git clone for icons, which is now removed or modified."
+fi
+
+
 if [ ! -d "$THEME_SRC_DIR/catppuccin/cursors" ]; then
     echo "Cloning Catppuccin cursors..."
     git clone --depth 1 https://github.com/catppuccin/cursors.git "$THEME_SRC_DIR/catppuccin/cursors"
@@ -446,24 +475,33 @@ else
 fi
 
 # Install Catppuccin Icon Theme (Mocha)
-# Source: $THEME_SRC_DIR/catppuccin/icons/Catppuccin-Mocha (assuming this is the directory structure post-clone)
 ICON_THEME_NAME="Catppuccin-Mocha"
-# The Catppuccin icons repository (https://github.com/catppuccin/icons) typically has various folders like Catppuccin-Mocha, Catppuccin-Latte etc. directly in the root, or under a 'src' or 'themes' folder.
-# Let's assume the cloned $THEME_SRC_DIR/catppuccin/icons contains these folders directly.
-# If they are in $THEME_SRC_DIR/catppuccin/icons/dist/, the original path was correct.
-# If they are directly in $THEME_SRC_DIR/catppuccin/icons/, this new path is correct.
-# The user request implies the 'dist' subdirectory is incorrect.
-if [ -d "$THEME_SRC_DIR/catppuccin/icons/$ICON_THEME_NAME" ]; then
-    echo "Installing Icon Theme: $ICON_THEME_NAME from $THEME_SRC_DIR/catppuccin/icons/$ICON_THEME_NAME"
-    cp -r "$THEME_SRC_DIR/catppuccin/icons/$ICON_THEME_NAME" "$USER_ICONS_DIR/"
-else
-    # Fallback check for the original 'dist' path in case the assumption is wrong for some variants or future changes.
-    if [ -d "$THEME_SRC_DIR/catppuccin/icons/dist/$ICON_THEME_NAME" ]; then
-        echo "Installing Icon Theme: $ICON_THEME_NAME from $THEME_SRC_DIR/catppuccin/icons/dist/$ICON_THEME_NAME (fallback path)"
-        cp -r "$THEME_SRC_DIR/catppuccin/icons/dist/$ICON_THEME_NAME" "$USER_ICONS_DIR/"
+if [ "$CATPPUCCIN_ICONS_INSTALLED_SUCCESS" = true ]; then
+    # Primary path check within the extracted directory
+    ICON_SOURCE_PATH="$ICON_EXTRACT_DIR/$ICON_THEME_NAME"
+
+    if [ -d "$ICON_SOURCE_PATH" ]; then
+        echo "Installing Icon Theme: $ICON_THEME_NAME from $ICON_SOURCE_PATH"
+        cp -r "$ICON_SOURCE_PATH" "$USER_ICONS_DIR/"
     else
-        echo "WARNING: Icon Theme $ICON_THEME_NAME not found in $THEME_SRC_DIR/catppuccin/icons/$ICON_THEME_NAME or $THEME_SRC_DIR/catppuccin/icons/dist/$ICON_THEME_NAME. Icon theme installation skipped."
+        # Fallback path for structures like 'src/Catppuccin-Mocha' within the tarball
+        ICON_SOURCE_PATH_FALLBACK="$ICON_EXTRACT_DIR/src/$ICON_THEME_NAME"
+        if [ -d "$ICON_SOURCE_PATH_FALLBACK" ]; then
+             echo "Installing Icon Theme: $ICON_THEME_NAME from $ICON_SOURCE_PATH_FALLBACK (fallback src/ path)"
+             cp -r "$ICON_SOURCE_PATH_FALLBACK" "$USER_ICONS_DIR/"
+        else
+            # Fallback for structures like 'themes/Catppuccin-Mocha'
+            ICON_SOURCE_PATH_FALLBACK_THEMES="$ICON_EXTRACT_DIR/themes/$ICON_THEME_NAME"
+            if [ -d "$ICON_SOURCE_PATH_FALLBACK_THEMES" ]; then
+                echo "Installing Icon Theme: $ICON_THEME_NAME from $ICON_SOURCE_PATH_FALLBACK_THEMES (fallback themes/ path)"
+                cp -r "$ICON_SOURCE_PATH_FALLBACK_THEMES" "$USER_ICONS_DIR/"
+            else
+                echo "WARNING: Icon Theme $ICON_THEME_NAME not found in $ICON_SOURCE_PATH, $ICON_SOURCE_PATH_FALLBACK, or $ICON_SOURCE_PATH_FALLBACK_THEMES after extraction. Icon theme installation skipped."
+            fi
+        fi
     fi
+else
+    echo "INFO: Catppuccin icon download/extraction failed or was skipped. Icon theme installation from release asset will not proceed."
 fi
 
 # Install Catppuccin Cursor Theme (Mocha Dark)
