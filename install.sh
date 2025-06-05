@@ -446,13 +446,24 @@ else
 fi
 
 # Install Catppuccin Icon Theme (Mocha)
-# Source: $THEME_SRC_DIR/catppuccin/icons/dist/Catppuccin-Mocha
+# Source: $THEME_SRC_DIR/catppuccin/icons/Catppuccin-Mocha (assuming this is the directory structure post-clone)
 ICON_THEME_NAME="Catppuccin-Mocha"
-if [ -d "$THEME_SRC_DIR/catppuccin/icons/dist/$ICON_THEME_NAME" ]; then
-    echo "Installing Icon Theme: $ICON_THEME_NAME"
-    cp -r "$THEME_SRC_DIR/catppuccin/icons/dist/$ICON_THEME_NAME" "$USER_ICONS_DIR/"
+# The Catppuccin icons repository (https://github.com/catppuccin/icons) typically has various folders like Catppuccin-Mocha, Catppuccin-Latte etc. directly in the root, or under a 'src' or 'themes' folder.
+# Let's assume the cloned $THEME_SRC_DIR/catppuccin/icons contains these folders directly.
+# If they are in $THEME_SRC_DIR/catppuccin/icons/dist/, the original path was correct.
+# If they are directly in $THEME_SRC_DIR/catppuccin/icons/, this new path is correct.
+# The user request implies the 'dist' subdirectory is incorrect.
+if [ -d "$THEME_SRC_DIR/catppuccin/icons/$ICON_THEME_NAME" ]; then
+    echo "Installing Icon Theme: $ICON_THEME_NAME from $THEME_SRC_DIR/catppuccin/icons/$ICON_THEME_NAME"
+    cp -r "$THEME_SRC_DIR/catppuccin/icons/$ICON_THEME_NAME" "$USER_ICONS_DIR/"
 else
-    echo "WARNING: Icon Theme $ICON_THEME_NAME not found in $THEME_SRC_DIR/catppuccin/icons/dist/. Icon theme installation skipped."
+    # Fallback check for the original 'dist' path in case the assumption is wrong for some variants or future changes.
+    if [ -d "$THEME_SRC_DIR/catppuccin/icons/dist/$ICON_THEME_NAME" ]; then
+        echo "Installing Icon Theme: $ICON_THEME_NAME from $THEME_SRC_DIR/catppuccin/icons/dist/$ICON_THEME_NAME (fallback path)"
+        cp -r "$THEME_SRC_DIR/catppuccin/icons/dist/$ICON_THEME_NAME" "$USER_ICONS_DIR/"
+    else
+        echo "WARNING: Icon Theme $ICON_THEME_NAME not found in $THEME_SRC_DIR/catppuccin/icons/$ICON_THEME_NAME or $THEME_SRC_DIR/catppuccin/icons/dist/$ICON_THEME_NAME. Icon theme installation skipped."
+    fi
 fi
 
 # Install Catppuccin Cursor Theme (Mocha Dark)
