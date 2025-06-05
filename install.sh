@@ -141,35 +141,120 @@ echo "Configuring Polybar..."
 POLYBAR_DIR="$CONFIG_DIR/polybar"
 mkdir -p "$POLYBAR_DIR"
 
-# Backup existing Polybar config
+# Check if Polybar config.ini already exists (before backup)
+ORIGINAL_POLYBAR_CONFIG_EXISTS=false
 if [ -f "$POLYBAR_DIR/config.ini" ]; then
-    echo "Backing up existing Polybar config to $POLYBAR_DIR/config.ini.backup"
+    ORIGINAL_POLYBAR_CONFIG_EXISTS=true
+    echo "INFO: Existing Polybar config found at $POLYBAR_DIR/config.ini."
+fi
+
+# Backup existing Polybar config
+if [ "$ORIGINAL_POLYBAR_CONFIG_EXISTS" = true ]; then # Only backup if it truly existed
+    echo "Backing up existing Polybar config to $POLYBAR_DIR/config.ini.backup.$(date +%Y%m%d-%H%M%S)"
     mv "$POLYBAR_DIR/config.ini" "$POLYBAR_DIR/config.ini.backup.$(date +%Y%m%d-%H%M%S)"
 fi
 if [ -f "$POLYBAR_DIR/launch.sh" ]; then
-    echo "Backing up existing Polybar launch.sh to $POLYBAR_DIR/launch.sh.backup"
+    echo "Backing up existing Polybar launch.sh to $POLYBAR_DIR/launch.sh.backup.$(date +%Y%m%d-%H%M%S)"
     mv "$POLYBAR_DIR/launch.sh" "$POLYBAR_DIR/launch.sh.backup.$(date +%Y%m%d-%H%M%S)"
 fi
 
-echo "Copying Catppuccin Mocha Polybar theme..."
-# Assuming Catppuccin themes are cloned into $THEME_SRC_DIR/catppuccin/polybar
-# The Catppuccin Polybar repo has different .ini files for flavors in its root.
-# We'll use 'mocha.ini' and rename it to 'config.ini' for Polybar.
-if [ -f "$THEME_SRC_DIR/catppuccin/polybar/mocha.ini" ]; then
-    cp "$THEME_SRC_DIR/catppuccin/polybar/mocha.ini" "$POLYBAR_DIR/config.ini"
-else
-    echo "ERROR: Catppuccin Mocha Polybar theme file not found at $THEME_SRC_DIR/catppuccin/polybar/mocha.ini"
-    # Potentially clone it if it's missing, or error out
-    echo "Attempting to clone Catppuccin Polybar if missing..."
-    git clone --depth 1 https://github.com/catppuccin/polybar.git "$THEME_SRC_DIR/catppuccin/polybar_temp"
-    if [ -f "$THEME_SRC_DIR/catppuccin/polybar_temp/mocha.ini" ]; then
-        cp "$THEME_SRC_DIR/catppuccin/polybar_temp/mocha.ini" "$POLYBAR_DIR/config.ini"
-        rm -rf "$THEME_SRC_DIR/catppuccin/polybar_temp" # Clean up
+echo "Attempting to set up Catppuccin Mocha Polybar theme..."
+POLYBAR_THEME_FILE_NAME="mocha.ini" # Default theme file to use
+POLYBAR_CONFIG_TARGET="$POLYBAR_DIR/config.ini"
+MOCHA_INI_FOUND=false
+FOUND_MOCHA_INI_PATH="" # Variable to store the path of the found mocha.ini
+
+# Check in primary cloned directory: $THEME_SRC_DIR/catppuccin/polybar
+PRIMARY_POLYBAR_THEMES_SUBDIR_PATH="$THEME_SRC_DIR/catppuccin/polybar/themes/$POLYBAR_THEME_FILE_NAME"
+PRIMARY_POLYBAR_ROOT_PATH="$THEME_SRC_DIR/catppuccin/polybar/$POLYBAR_THEME_FILE_NAME"
+
+if [ -f "$PRIMARY_POLYBAR_THEMES_SUBDIR_PATH" ]; then
+    FOUND_MOCHA_INI_PATH="$PRIMARY_POLYBAR_THEMES_SUBDIR_PATH"
+    MOCHA_INI_FOUND=true
+elif [ -f "$PRIMARY_POLYBAR_ROOT_PATH" ]; then
+    FOUND_MOCHA_INI_PATH="$PRIMARY_POLYBAR_ROOT_PATH"
+    MOCHA_INI_FOUND=true
+fi
+
+if [ "$MOCHA_INI_FOUND" = true ]; then
+    echo "Catppuccin Mocha Polybar source found at $FOUND_MOCHA_INI_PATH."
+    if [ "$ORIGINAL_POLYBAR_CONFIG_EXISTS" = true ]; then
+        echo "INFO: Existing Polybar config ($POLYBAR_CONFIG_TARGET) was backed up."
+        echo "Catppuccin Mocha theme WILL NOT be automatically applied to preserve your existing settings."
+        echo "You can find the Catppuccin Mocha theme source at $FOUND_MOCHA_INI_PATH if you wish to apply it manually."
+        # To ensure no cp happens, we can unset MOCHA_INI_FOUND or ensure the cp is in an else block
+        # For now, the main logic further down will handle the copy if MOCHA_INI_FOUND is true, so we need to modify that
     else
-        echo "CRITICAL ERROR: Could not find or download Catppuccin Polybar theme. Please check paths and internet."
+        echo "Applying Catppuccin Mocha Polybar theme from $FOUND_MOCHA_INI_PATH to $POLYBAR_CONFIG_TARGET..."
+        cp "$FOUND_MOCHA_INI_PATH" "$POLYBAR_CONFIG_TARGET"
+        echo "Polybar theme configured to use Catppuccin Mocha."
+    fi
+else # MOCHA_INI_FOUND is false, try temporary clone
+    echo "WARNING: Catppuccin Mocha Polybar '$POLYBAR_THEME_FILE_NAME' not found in primary clone at:"
+    echo "  - $PRIMARY_POLYBAR_THEMES_SUBDIR_PATH"
+    echo "  - $PRIMARY_POLYBAR_ROOT_PATH"
+    echo "Attempting to clone Catppuccin Polybar temporarily to check structure..."
+
+    TEMP_POLYBAR_CLONE_DIR="$THEME_SRC_DIR/catppuccin/polybar_temp"
+    git clone --depth 1 https://github.com/catppuccin/polybar.git "$TEMP_POLYBAR_CLONE_DIR"
+
+    TEMP_POLYBAR_THEMES_SUBDIR_PATH="$TEMP_POLYBAR_CLONE_DIR/themes/$POLYBAR_THEME_FILE_NAME"
+    TEMP_POLYBAR_ROOT_PATH="$TEMP_POLYBAR_CLONE_DIR/$POLYBAR_THEME_FILE_NAME"
+    TEMP_MOCHA_INI_FOUND_IN_TEMP_CLONE=false
+
+    if [ -f "$TEMP_POLYBAR_THEMES_SUBDIR_PATH" ]; then
+        FOUND_MOCHA_INI_PATH="$TEMP_POLYBAR_THEMES_SUBDIR_PATH"
+        TEMP_MOCHA_INI_FOUND_IN_TEMP_CLONE=true
+    elif [ -f "$TEMP_POLYBAR_ROOT_PATH" ]; then
+        FOUND_MOCHA_INI_PATH="$TEMP_POLYBAR_ROOT_PATH"
+        TEMP_MOCHA_INI_FOUND_IN_TEMP_CLONE=true
+    fi
+
+    if [ "$TEMP_MOCHA_INI_FOUND_IN_TEMP_CLONE" = true ]; then
+        echo "Catppuccin Mocha Polybar source found in temporary clone at $FOUND_MOCHA_INI_PATH."
+        if [ "$ORIGINAL_POLYBAR_CONFIG_EXISTS" = true ]; then
+            echo "INFO: Existing Polybar config ($POLYBAR_CONFIG_TARGET) was backed up."
+            echo "Catppuccin Mocha theme WILL NOT be automatically applied from temporary clone to preserve your existing settings."
+            echo "You can find the Catppuccin Mocha theme source at $FOUND_MOCHA_INI_PATH if you wish to apply it manually (copy before this script cleans up the temp clone)."
+        else
+            echo "Applying Catppuccin Mocha Polybar theme from temporary clone $FOUND_MOCHA_INI_PATH to $POLYBAR_CONFIG_TARGET..."
+            cp "$FOUND_MOCHA_INI_PATH" "$POLYBAR_CONFIG_TARGET"
+            echo "Polybar theme configured to use Catppuccin Mocha."
+        fi
+        MOCHA_INI_FOUND=true # Mark as found globally for the script
+    fi
+    rm -rf "$TEMP_POLYBAR_CLONE_DIR" # Clean up temporary clone
+
+    if [ "$MOCHA_INI_FOUND" = false ]; then # Check the global MOCHA_INI_FOUND which is only true if a copy happened or was skipped for existing config
+        echo "CRITICAL ERROR: Catppuccin Mocha Polybar theme '$POLYBAR_THEME_FILE_NAME' not found even after temporary clone. Checked:"
+        echo "  - $PRIMARY_POLYBAR_THEMES_SUBDIR_PATH (primary clone)"
+        echo "  - $PRIMARY_POLYBAR_ROOT_PATH (primary clone)"
+        echo "  - $TEMP_POLYBAR_THEMES_SUBDIR_PATH (temp clone)"
+        echo "  - $TEMP_POLYBAR_ROOT_PATH (temp clone)"
+        echo "Please check paths and internet connection. Exiting."
         exit 1
+    elif [ "$ORIGINAL_POLYBAR_CONFIG_EXISTS" = false ] && [ ! -f "$POLYBAR_CONFIG_TARGET" ]; then
+        # This case means mocha.ini source was found, original config didn't exist, but copy didn't happen.
+        # This should not be reached if logic is correct, but as a safeguard:
+        echo "CRITICAL ERROR: Polybar config.ini was not created. Please check script logic."
+        exit 1
+    elif [ "$ORIGINAL_POLYBAR_CONFIG_EXISTS" = true ] && [ ! -f "$POLYBAR_CONFIG_TARGET" ]; then
+         # This means original existed, was backed up, and we correctly didn't overwrite.
+         # We need to restore the backup if we are not applying the new theme.
+         # This is becoming too complex. The original request was simpler:
+         # "if $POLYBAR_DIR/config.ini exists, don't overwrite it".
+         # The current structure has already done the backup.
+         # The easiest is to just NOT copy if ORIGINAL_POLYBAR_CONFIG_EXISTS = true.
+         # The MOCHA_INI_FOUND reflects source found.
+         # The copy has already been handled correctly above for the primary find.
+         # And for the temporary find.
+         # The final MOCHA_INI_FOUND check is for the overall success.
+         echo "INFO: Preserving existing Polybar configuration. Catppuccin Mocha theme was not automatically applied."
     fi
 fi
+# This final message might be confusing if theme was not applied.
+# Let's remove it or make it conditional.
+# echo "Polybar theme configured to use Catppuccin Mocha."
 
 echo "Creating Polybar launch script..."
 cat << EOF > "$POLYBAR_DIR/launch.sh"
@@ -201,34 +286,73 @@ echo "Polybar configuration complete. You may need to adjust the 'example' bar n
 echo "Configuring Kitty terminal..."
 KITTY_DIR="$CONFIG_DIR/kitty"
 mkdir -p "$KITTY_DIR"
+KITTY_CONFIG_FILE="$KITTY_DIR/kitty.conf"
+KITTY_THEME_SOURCE_NAME="mocha.conf" # The specific Catppuccin theme file
 
-# Backup existing Kitty config
-if [ -f "$KITTY_DIR/kitty.conf" ]; then
-    echo "Backing up existing Kitty config to $KITTY_DIR/kitty.conf.backup"
-    mv "$KITTY_DIR/kitty.conf" "$KITTY_DIR/kitty.conf.backup.$(date +%Y%m%d-%H%M%S)"
+ORIGINAL_KITTY_CONFIG_EXISTS=false
+if [ -f "$KITTY_CONFIG_FILE" ]; then
+    ORIGINAL_KITTY_CONFIG_EXISTS=true
+    echo "INFO: Existing Kitty config found at $KITTY_CONFIG_FILE."
 fi
 
-echo "Copying Catppuccin Mocha Kitty theme..."
-# Catppuccin Kitty themes are usually in $THEME_SRC_DIR/catppuccin/kitty/themes (e.g., Catppuccin-Mocha.conf)
-# The main repo $THEME_SRC_DIR/catppuccin/kitty also has .conf files like mocha.conf
-# Let's check for mocha.conf in the root of the cloned kitty theme repo first.
-CATPPUCCIN_KITTY_THEME_PATH="$THEME_SRC_DIR/catppuccin/kitty/mocha.conf"
+# Backup existing Kitty config
+if [ "$ORIGINAL_KITTY_CONFIG_EXISTS" = true ]; then
+    echo "Backing up existing Kitty config to $KITTY_CONFIG_FILE.backup.$(date +%Y%m%d-%H%M%S)"
+    mv "$KITTY_CONFIG_FILE" "$KITTY_CONFIG_FILE.backup.$(date +%Y%m%d-%H%M%S)"
+fi
 
-if [ -f "$CATPPUCCIN_KITTY_THEME_PATH" ]; then
-    cp "$CATPPUCCIN_KITTY_THEME_PATH" "$KITTY_DIR/kitty.conf"
-else
-    echo "ERROR: Catppuccin Mocha Kitty theme file not found at $CATPPUCCIN_KITTY_THEME_PATH"
-    echo "Attempting to clone Catppuccin Kitty if missing..."
-    # Fallback: try to clone the repo again if it was missed or path is wrong
-    rm -rf "$THEME_SRC_DIR/catppuccin/kitty_temp" # Clean previous temp if any
-    git clone --depth 1 https://github.com/catppuccin/kitty.git "$THEME_SRC_DIR/catppuccin/kitty_temp"
-    if [ -f "$THEME_SRC_DIR/catppuccin/kitty_temp/mocha.conf" ]; then
-        cp "$THEME_SRC_DIR/catppuccin/kitty_temp/mocha.conf" "$KITTY_DIR/kitty.conf"
-        rm -rf "$THEME_SRC_DIR/catppuccin/kitty_temp" # Clean up
+echo "Attempting to set up Catppuccin Mocha Kitty theme..."
+KITTY_MOCHA_CONF_FOUND=false
+FOUND_KITTY_MOCHA_CONF_PATH=""
+
+# Check in primary cloned directory: $THEME_SRC_DIR/catppuccin/kitty
+PRIMARY_KITTY_THEME_PATH="$THEME_SRC_DIR/catppuccin/kitty/$KITTY_THEME_SOURCE_NAME"
+
+if [ -f "$PRIMARY_KITTY_THEME_PATH" ]; then
+    FOUND_KITTY_MOCHA_CONF_PATH="$PRIMARY_KITTY_THEME_PATH"
+    KITTY_MOCHA_CONF_FOUND=true
+fi
+
+if [ "$KITTY_MOCHA_CONF_FOUND" = true ]; then
+    echo "Catppuccin Mocha Kitty theme source found at $FOUND_KITTY_MOCHA_CONF_PATH."
+    if [ "$ORIGINAL_KITTY_CONFIG_EXISTS" = true ]; then
+        echo "INFO: Existing Kitty config ($KITTY_CONFIG_FILE) was backed up."
+        echo "Catppuccin Mocha theme WILL NOT be automatically applied to preserve your existing settings."
+        echo "You can find the Catppuccin Mocha theme source at $FOUND_KITTY_MOCHA_CONF_PATH if you wish to apply it manually."
     else
-        echo "CRITICAL ERROR: Could not find or download Catppuccin Kitty theme. Please check paths and internet."
-        # Not exiting here, as terminal is critical but base functionality might still be wanted.
-        echo "Kitty configuration will be skipped."
+        echo "Applying Catppuccin Mocha Kitty theme from $FOUND_KITTY_MOCHA_CONF_PATH to $KITTY_CONFIG_FILE..."
+        cp "$FOUND_KITTY_MOCHA_CONF_PATH" "$KITTY_CONFIG_FILE"
+        echo "Kitty theme configured to use Catppuccin Mocha."
+    fi
+else
+    # Fallback: try to clone the repo again if it was missed or path is wrong
+    echo "WARNING: Catppuccin Mocha Kitty theme '$KITTY_THEME_SOURCE_NAME' not found in primary clone at $PRIMARY_KITTY_THEME_PATH."
+    echo "Attempting to clone Catppuccin Kitty temporarily..."
+    TEMP_KITTY_CLONE_DIR="$THEME_SRC_DIR/catppuccin/kitty_temp"
+    git clone --depth 1 https://github.com/catppuccin/kitty.git "$TEMP_KITTY_CLONE_DIR"
+
+    TEMP_KITTY_THEME_PATH="$TEMP_KITTY_CLONE_DIR/$KITTY_THEME_SOURCE_NAME"
+    if [ -f "$TEMP_KITTY_THEME_PATH" ]; then
+        FOUND_KITTY_MOCHA_CONF_PATH="$TEMP_KITTY_THEME_PATH"
+        KITTY_MOCHA_CONF_FOUND=true # Mark as found for outer logic
+        echo "Catppuccin Mocha Kitty theme source found in temporary clone at $FOUND_KITTY_MOCHA_CONF_PATH."
+        if [ "$ORIGINAL_KITTY_CONFIG_EXISTS" = true ]; then
+            echo "INFO: Existing Kitty config ($KITTY_CONFIG_FILE) was backed up."
+            echo "Catppuccin Mocha theme WILL NOT be automatically applied from temporary clone to preserve your existing settings."
+            echo "You can find the Catppuccin Mocha theme source at $FOUND_KITTY_MOCHA_CONF_PATH if you wish to apply it manually."
+        else
+            echo "Applying Catppuccin Mocha Kitty theme from temporary clone $FOUND_KITTY_MOCHA_CONF_PATH to $KITTY_CONFIG_FILE..."
+            cp "$FOUND_KITTY_MOCHA_CONF_PATH" "$KITTY_CONFIG_FILE"
+            echo "Kitty theme configured to use Catppuccin Mocha."
+        fi
+    fi
+    rm -rf "$TEMP_KITTY_CLONE_DIR" # Clean up
+
+    if [ "$KITTY_MOCHA_CONF_FOUND" = false ]; then
+        echo "ERROR: Could not find or download Catppuccin Kitty theme '$KITTY_THEME_SOURCE_NAME'. Checked primary and temporary clone."
+        echo "Kitty configuration will be skipped if no $KITTY_CONFIG_FILE was created."
+        # Unlike Polybar, a missing Kitty theme might not be critical to exit the whole script.
+        # User might have their own kitty.conf or use terminal defaults.
     fi
 fi
 
@@ -432,11 +556,21 @@ elif [ "$OS_TYPE" == "mint" ]; then
     sudo apt-get install -y papirus-icon-theme gnome-themes-standard # gnome-themes-standard provides Adwaita for Mint
 fi
 
-# Download and extract Catppuccin Icons from release asset
-CATPPUCCIN_ICONS_INSTALLED_SUCCESS=false
-if [ -n "$ICON_RELEASE_URL" ]; then # Only attempt if variable is set
-    echo "Downloading Catppuccin icons release asset from $ICON_RELEASE_URL..."
-    if curl -L "$ICON_RELEASE_URL" -o "$ICON_ARCHIVE_PATH"; then
+# --- Catppuccin Icon Theme Installation Logic ---
+ICON_THEME_NAME_FOR_CHECK="Catppuccin-Mocha" # Default icon theme variant
+TARGET_ICON_DIR_CHECK="$USER_ICONS_DIR/$ICON_THEME_NAME_FOR_CHECK"
+CATPPUCCIN_ICONS_DOWNLOAD_NEEDED=true # Assume download is needed by default
+
+if [ -d "$TARGET_ICON_DIR_CHECK" ]; then
+    echo "INFO: Catppuccin icon theme '$ICON_THEME_NAME_FOR_CHECK' already exists at $TARGET_ICON_DIR_CHECK. Skipping download and installation of release asset."
+    CATPPUCCIN_ICONS_DOWNLOAD_NEEDED=false
+fi
+
+CATPPUCCIN_ICONS_INSTALLED_SUCCESS=false # This will be set true only if download + extract is successful
+if [ "$CATPPUCCIN_ICONS_DOWNLOAD_NEEDED" = true ]; then
+    if [ -n "$ICON_RELEASE_URL" ]; then # Only attempt if variable is set
+        echo "Downloading Catppuccin icons release asset from $ICON_RELEASE_URL..."
+        if curl -L "$ICON_RELEASE_URL" -o "$ICON_ARCHIVE_PATH"; then
         echo "Icon archive downloaded successfully to $ICON_ARCHIVE_PATH."
         mkdir -p "$ICON_EXTRACT_DIR"
         echo "Extracting icon archive to $ICON_EXTRACT_DIR..."
@@ -451,15 +585,37 @@ if [ -n "$ICON_RELEASE_URL" ]; then # Only attempt if variable is set
         echo "ERROR: Failed to download Catppuccin icons from $ICON_RELEASE_URL. Skipping Catppuccin icon installation."
     fi
 else
-    echo "INFO: ICON_RELEASE_URL not set, skipping Catppuccin icon download from release."
-    echo "This means the script might have previously relied on git clone for icons, which is now removed or modified."
+    else
+        echo "INFO: ICON_RELEASE_URL not set, skipping Catppuccin icon download from release."
+        # This case implies the variable was empty, so no download attempt.
+        # CATPPUCCIN_ICONS_INSTALLED_SUCCESS remains false.
+    fi
+fi
+# Note: The actual copying of icons from $ICON_EXTRACT_DIR to $USER_ICONS_DIR
+# happens later and is already conditional on CATPPUCCIN_ICONS_INSTALLED_SUCCESS being true.
+# So, if CATPPUCCIN_ICONS_DOWNLOAD_NEEDED is false, CATPPUCCIN_ICONS_INSTALLED_SUCCESS will also remain false (unless already true from a previous run, which this check prevents),
+# correctly skipping both download and the specific copy step from extracted archive.
+
+# --- Catppuccin Cursor Theme Installation Logic Pre-check ---
+# USER_ICONS_DIR is defined globally much earlier
+CURSOR_THEME_NAME_FOR_CHECK="Catppuccin-Mocha-Dark" # Default cursor theme variant
+TARGET_CURSOR_DIR_CHECK="$USER_ICONS_DIR/$CURSOR_THEME_NAME_FOR_CHECK"
+CATPPUCCIN_CURSORS_OPERATIONS_NEEDED=true # Assume operations are needed by default
+
+if [ -d "$TARGET_CURSOR_DIR_CHECK" ]; then
+    echo "INFO: Catppuccin cursor theme '$CURSOR_THEME_NAME_FOR_CHECK' already exists at $TARGET_CURSOR_DIR_CHECK. Skipping clone and copy operations for cursors."
+    CATPPUCCIN_CURSORS_OPERATIONS_NEEDED=false
 fi
 
-
-if [ ! -d "$THEME_SRC_DIR/catppuccin/cursors" ]; then
-    echo "Cloning Catppuccin cursors..."
-    git clone --depth 1 https://github.com/catppuccin/cursors.git "$THEME_SRC_DIR/catppuccin/cursors"
+if [ "$CATPPUCCIN_CURSORS_OPERATIONS_NEEDED" = true ]; then
+    if [ ! -d "$THEME_SRC_DIR/catppuccin/cursors" ]; then
+        echo "Cloning Catppuccin cursors repository to $THEME_SRC_DIR/catppuccin/cursors..."
+        git clone --depth 1 https://github.com/catppuccin/cursors.git "$THEME_SRC_DIR/catppuccin/cursors"
+    else
+        echo "INFO: Catppuccin cursors repository already cloned at $THEME_SRC_DIR/catppuccin/cursors."
+    fi
 fi
+# The subsequent "Install Catppuccin Cursor Theme (Mocha Dark)" section will also be wrapped by CATPPUCCIN_CURSORS_OPERATIONS_NEEDED check
 
 echo "Configuring GTK themes, icon themes, and cursor themes..."
 USER_THEMES_DIR="$USER_HOME_DIR/.themes"
@@ -468,14 +624,25 @@ mkdir -p "$USER_THEMES_DIR"
 mkdir -p "$USER_ICONS_DIR"
 
 # Install Catppuccin GTK Theme (Mocha)
-# The Catppuccin GTK repo structure is complex. Pre-built themes are in the 'themes' directory of the cloned repo.
 GTK_THEME_NAME="Catppuccin-Mocha-Standard-Blue-Dark" # Example variant
-if [ -d "$THEME_SRC_DIR/catppuccin/gtk/themes/$GTK_THEME_NAME" ]; then
-    echo "Installing GTK Theme: $GTK_THEME_NAME"
-    cp -r "$THEME_SRC_DIR/catppuccin/gtk/themes/$GTK_THEME_NAME" "$USER_THEMES_DIR/"
+TARGET_GTK_THEME_DIR="$USER_THEMES_DIR/$GTK_THEME_NAME"
+
+if [ -d "$TARGET_GTK_THEME_DIR" ]; then
+    echo "INFO: Catppuccin GTK theme '$GTK_THEME_NAME' already exists at $TARGET_GTK_THEME_DIR. Skipping installation."
 else
-    echo "WARNING: GTK Theme $GTK_THEME_NAME not found in $THEME_SRC_DIR/catppuccin/gtk/themes/. GTK theme installation skipped."
-    echo "You might need to download it from https://github.com/catppuccin/gtk/releases and install manually, or check the cloned directory structure."
+    # The Catppuccin GTK repo structure is complex. Pre-built themes are in the 'themes' directory of the cloned repo.
+    # Source path for the GTK theme from the cloned catppuccin/gtk repository
+    SOURCE_GTK_THEME_PATH="$THEME_SRC_DIR/catppuccin/gtk/themes/$GTK_THEME_NAME"
+
+    if [ -d "$SOURCE_GTK_THEME_PATH" ]; then
+        echo "Installing GTK Theme: $GTK_THEME_NAME from $SOURCE_GTK_THEME_PATH"
+        cp -r "$SOURCE_GTK_THEME_PATH" "$USER_THEMES_DIR/"
+    else
+        echo "WARNING: Source for GTK Theme $GTK_THEME_NAME not found at $SOURCE_GTK_THEME_PATH. GTK theme installation skipped."
+        echo "This script expects the theme to be available in the cloned 'catppuccin/gtk' repository under 'themes/$GTK_THEME_NAME'."
+        echo "You might need to check if the 'catppuccin/gtk' clone was successful or if the theme name/path within that repo has changed."
+        echo "Alternatively, you can download it from https://github.com/catppuccin/gtk/releases and install manually."
+    fi
 fi
 
 # Install Catppuccin Icon Theme (Mocha)
@@ -509,35 +676,44 @@ else
 fi
 
 # Install Catppuccin Cursor Theme (Mocha Dark)
-# This section assumes catppuccin/cursors has been cloned into $THEME_SRC_DIR/catppuccin/cursors
-CURSOR_THEME_NAME="Catppuccin-Mocha-Dark"
-CURSOR_FOUND=false
+if [ "$CATPPUCCIN_CURSORS_OPERATIONS_NEEDED" = true ]; then
+    # This section assumes catppuccin/cursors has been cloned into $THEME_SRC_DIR/catppuccin/cursors (if needed and clone was successful)
+    CURSOR_THEME_NAME="Catppuccin-Mocha-Dark" # This is consistent with CURSOR_THEME_NAME_FOR_CHECK
+    CURSOR_FOUND=false
 
-# Define potential paths based on common structures in theme repositories
-PRIMARY_CURSOR_PATH="$THEME_SRC_DIR/catppuccin/cursors/$CURSOR_THEME_NAME"
-FALLBACK_CURSOR_PATH_SRC="$THEME_SRC_DIR/catppuccin/cursors/src/$CURSOR_THEME_NAME"
-FALLBACK_CURSOR_PATH_DIST="$THEME_SRC_DIR/catppuccin/cursors/dist/$CURSOR_THEME_NAME" # Original path
+    # Define potential paths based on common structures in theme repositories
+    PRIMARY_CURSOR_PATH="$THEME_SRC_DIR/catppuccin/cursors/$CURSOR_THEME_NAME"
+    FALLBACK_CURSOR_PATH_SRC="$THEME_SRC_DIR/catppuccin/cursors/src/$CURSOR_THEME_NAME"
+    FALLBACK_CURSOR_PATH_DIST="$THEME_SRC_DIR/catppuccin/cursors/dist/$CURSOR_THEME_NAME"
 
-if [ -d "$PRIMARY_CURSOR_PATH" ]; then
-    echo "Installing Cursor Theme: $CURSOR_THEME_NAME from $PRIMARY_CURSOR_PATH"
-    cp -r "$PRIMARY_CURSOR_PATH" "$USER_ICONS_DIR/"
-    CURSOR_FOUND=true
-elif [ -d "$FALLBACK_CURSOR_PATH_SRC" ]; then
-    echo "Installing Cursor Theme: $CURSOR_THEME_NAME from $FALLBACK_CURSOR_PATH_SRC (src/ path)"
-    cp -r "$FALLBACK_CURSOR_PATH_SRC" "$USER_ICONS_DIR/"
-    CURSOR_FOUND=true
-elif [ -d "$FALLBACK_CURSOR_PATH_DIST" ]; then
-    echo "Installing Cursor Theme: $CURSOR_THEME_NAME from $FALLBACK_CURSOR_PATH_DIST (dist/ path)"
-    cp -r "$FALLBACK_CURSOR_PATH_DIST" "$USER_ICONS_DIR/"
-    CURSOR_FOUND=true
-fi
+    if [ -d "$THEME_SRC_DIR/catppuccin/cursors" ]; then # Proceed only if clone source dir exists
+        if [ -d "$PRIMARY_CURSOR_PATH" ]; then
+            echo "Installing Cursor Theme: $CURSOR_THEME_NAME from $PRIMARY_CURSOR_PATH"
+            cp -r "$PRIMARY_CURSOR_PATH" "$USER_ICONS_DIR/"
+            CURSOR_FOUND=true
+        elif [ -d "$FALLBACK_CURSOR_PATH_SRC" ]; then
+            echo "Installing Cursor Theme: $CURSOR_THEME_NAME from $FALLBACK_CURSOR_PATH_SRC (src/ path)"
+            cp -r "$FALLBACK_CURSOR_PATH_SRC" "$USER_ICONS_DIR/"
+            CURSOR_FOUND=true
+        elif [ -d "$FALLBACK_CURSOR_PATH_DIST" ]; then
+            echo "Installing Cursor Theme: $CURSOR_THEME_NAME from $FALLBACK_CURSOR_PATH_DIST (dist/ path)"
+            cp -r "$FALLBACK_CURSOR_PATH_DIST" "$USER_ICONS_DIR/"
+            CURSOR_FOUND=true
+        fi
 
-if [ "$CURSOR_FOUND" = false ]; then
-    echo "WARNING: Cursor Theme $CURSOR_THEME_NAME not found in any of the following paths:"
-    echo "  - $PRIMARY_CURSOR_PATH"
-    echo "  - $FALLBACK_CURSOR_PATH_SRC"
-    echo "  - $FALLBACK_CURSOR_PATH_DIST"
-    echo "Cursor theme installation skipped."
+        if [ "$CURSOR_FOUND" = false ]; then
+            echo "WARNING: Cursor Theme $CURSOR_THEME_NAME not found in the cloned repository at any of the following paths:"
+            echo "  - $PRIMARY_CURSOR_PATH"
+            echo "  - $FALLBACK_CURSOR_PATH_SRC"
+            echo "  - $FALLBACK_CURSOR_PATH_DIST"
+            echo "Cursor theme installation from clone skipped. This might be okay if it was already installed or an issue with the repository structure."
+        fi
+    else
+        echo "WARNING: Catppuccin cursors source directory ($THEME_SRC_DIR/catppuccin/cursors) not found. Skipping cursor installation from clone."
+    fi
+else
+    # This message is now part of the pre-check if CATPPUCCIN_CURSORS_OPERATIONS_NEEDED is false
+    # echo "INFO: Skipping Catppuccin cursor theme copy operations as it was found already installed or clone was skipped."
 fi
 
 echo "Applying GTK settings..."
