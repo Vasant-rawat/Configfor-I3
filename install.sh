@@ -118,17 +118,64 @@ echo "Creating directories for theme source files..."
 mkdir -p "$THEME_SRC_DIR/catppuccin"
 mkdir -p "$THEME_SRC_DIR/rose-pine"
 
-echo "Cloning Catppuccin themes..."
-git clone --depth 1 https://github.com/catppuccin/polybar.git "$THEME_SRC_DIR/catppuccin/polybar"
-git clone --depth 1 https://github.com/catppuccin/kitty.git "$THEME_SRC_DIR/catppuccin/kitty"
-git clone --depth 1 https://github.com/catppuccin/gtk.git "$THEME_SRC_DIR/catppuccin/gtk"
-# git clone --depth 1 https://github.com/catppuccin/icons.git "$THEME_SRC_DIR/catppuccin/icons" # Replaced by tarball download
-git clone --depth 1 https://github.com/catppuccin/papirus-folders.git "$THEME_SRC_DIR/catppuccin/papirus-folders"
+echo "Cloning Catppuccin themes (if not already present in source cache)..."
+CATPPUCCIN_POLYBAR_SRC_DIR="$THEME_SRC_DIR/catppuccin/polybar"
+if [ ! -d "$CATPPUCCIN_POLYBAR_SRC_DIR" ]; then
+    git clone --depth 1 https://github.com/catppuccin/polybar.git "$CATPPUCCIN_POLYBAR_SRC_DIR"
+else
+    echo "INFO: Source directory $CATPPUCCIN_POLYBAR_SRC_DIR already exists. Skipping clone for catppuccin/polybar."
+fi
 
-echo "Cloning Rosé Pine themes..."
-git clone --depth 1 https://github.com/rose-pine/polybar.git "$THEME_SRC_DIR/rose-pine/polybar"
-git clone --depth 1 https://github.com/rose-pine/kitty.git "$THEME_SRC_DIR/rose-pine/kitty"
-git clone --depth 1 https://github.com/rose-pine/gtk.git "$THEME_SRC_DIR/rose-pine/gtk"
+CATPPUCCIN_KITTY_SRC_DIR="$THEME_SRC_DIR/catppuccin/kitty"
+if [ ! -d "$CATPPUCCIN_KITTY_SRC_DIR" ]; then
+    git clone --depth 1 https://github.com/catppuccin/kitty.git "$CATPPUCCIN_KITTY_SRC_DIR"
+else
+    echo "INFO: Source directory $CATPPUCCIN_KITTY_SRC_DIR already exists. Skipping clone for catppuccin/kitty."
+fi
+
+CATPPUCCIN_GTK_SRC_DIR="$THEME_SRC_DIR/catppuccin/gtk"
+if [ ! -d "$CATPPUCCIN_GTK_SRC_DIR" ]; then
+    git clone --depth 1 https://github.com/catppuccin/gtk.git "$CATPPUCCIN_GTK_SRC_DIR"
+else
+    echo "INFO: Source directory $CATPPUCCIN_GTK_SRC_DIR already exists. Skipping clone for catppuccin/gtk."
+fi
+
+# git clone --depth 1 https://github.com/catppuccin/icons.git "$THEME_SRC_DIR/catppuccin/icons" # Replaced by tarball download
+
+CATPPUCCIN_PAPIRUS_SRC_DIR="$THEME_SRC_DIR/catppuccin/papirus-folders"
+if [ ! -d "$CATPPUCCIN_PAPIRUS_SRC_DIR" ]; then
+    git clone --depth 1 https://github.com/catppuccin/papirus-folders.git "$CATPPUCCIN_PAPIRUS_SRC_DIR"
+else
+    echo "INFO: Source directory $CATPPUCCIN_PAPIRUS_SRC_DIR already exists. Skipping clone for catppuccin/papirus-folders."
+fi
+
+# Note: catppuccin/cursors clone is handled later, conditionally, if CATPPUCCIN_CURSORS_OPERATIONS_NEEDED is true.
+
+echo "Cloning Rosé Pine themes (if not already present in source cache)..."
+
+# Define target directories for Rosé Pine themes
+ROS_PINE_POLYBAR_SRC_DIR="$THEME_SRC_DIR/rose-pine/polybar"
+ROS_PINE_KITTY_SRC_DIR="$THEME_SRC_DIR/rose-pine/kitty"
+ROS_PINE_GTK_SRC_DIR="$THEME_SRC_DIR/rose-pine/gtk"
+
+if [ ! -d "$ROS_PINE_POLYBAR_SRC_DIR" ]; then
+    git clone --depth 1 https://github.com/rose-pine/polybar.git "$ROS_PINE_POLYBAR_SRC_DIR"
+else
+    echo "INFO: Source directory $ROS_PINE_POLYBAR_SRC_DIR already exists. Skipping clone for rose-pine/polybar."
+fi
+
+if [ ! -d "$ROS_PINE_KITTY_SRC_DIR" ]; then
+    git clone --depth 1 https://github.com/rose-pine/kitty.git "$ROS_PINE_KITTY_SRC_DIR"
+else
+    echo "INFO: Source directory $ROS_PINE_KITTY_SRC_DIR already exists. Skipping clone for rose-pine/kitty."
+fi
+
+if [ ! -d "$ROS_PINE_GTK_SRC_DIR" ]; then
+    git clone --depth 1 https://github.com/rose-pine/gtk.git "$ROS_PINE_GTK_SRC_DIR"
+else
+    echo "INFO: Source directory $ROS_PINE_GTK_SRC_DIR already exists. Skipping clone for rose-pine/gtk."
+fi
+
 # Rosé Pine icons are typically part of the GTK theme or separate icon packs, not usually a standalone 'icons' repo for general desktop use by rose-pine.
 # The main rose-pine/icons repo is for their branding/website.
 # If specific Rosé Pine icon themes are desired, they should be sourced from their respective repositories if available,
